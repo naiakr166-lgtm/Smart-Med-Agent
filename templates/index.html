@@ -1,0 +1,397 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Smart Med-Agent Dashboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: #f5f3ff;
+      font-family: Arial, sans-serif;
+      color: #292342;
+    }
+    header {
+      background: #5636a5;
+      color: white;
+      padding: 28px;
+      text-align: center;
+    }
+    header h1 { margin: 0 0 8px; }
+    main { max-width: 1100px; margin: auto; padding: 25px; }
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 16px;
+      margin-bottom: 25px;
+    }
+    .card, section {
+      background: white;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 3px 12px #30205a12;
+    }
+    .card h2 { color: #5636a5; font-size: 17px; }
+    .card strong { font-size: 30px; }
+    section { margin-bottom: 22px; }
+    section h2 { color: #5636a5; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td {
+      text-align: left;
+      padding: 12px;
+      border-bottom: 1px solid #eeeaf7;
+    }
+    th { background: #f0ebff; }
+    .HIGH { color: #c62828; font-weight: bold; }
+    .MEDIUM { color: #c77b00; font-weight: bold; }
+    .LOW { color: #218653; font-weight: bold; }
+    .error { color: #c62828; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Smart Med-Agent</h1>
+  <p>Multi-Agent Medical Supply Monitoring System</p>
+</header>
+
+<main>
+  <div class="cards">
+    <div class="card">
+      <h2>Inventory Alerts</h2>
+      <strong id="alertCount">--</strong>
+    </div>
+    <div class="card">
+      <h2>High Risk Predictions</h2>
+      <strong id="riskCount">--</strong>
+    </div>
+    <div class="card">
+      <h2>Transfer Recommendations</h2>
+      <strong id="transferCount">--</strong>
+    </div>
+  </div>
+
+  <section>
+    <h2>Agent 1 — Inventory Monitoring</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Hospital</th><th>Medicine</th><th>Stock</th><th>Shortage</th></tr>
+        </thead>
+        <tbody id="inventory"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Agent 2 — Shortage Prediction</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Hospital</th><th>Medicine</th><th>Days Left</th><th>Risk</th></tr>
+        </thead>
+        <tbody id="predictions"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Agent 3 — Supply Coordination</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>From</th><th>To</th><th>Medicine</th><th>Quantity</th><th>Status</th></tr>
+        </thead>
+        <tbody id="coordination"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script>
+  function addRow(target, values, riskIndex = -1) {
+    const tr = document.createElement("tr");
+    values.forEach((value, index) => {
+      const td = document.createElement("td");
+      td.textContent = value;
+      if (index === riskIndex && ["HIGH", "MEDIUM", "LOW"].includes(value)) {
+        td.className = value;
+      }
+      tr.appendChild(td);
+    });
+    document.getElementById(target).appendChild(tr);
+  }
+
+  async function loadDashboard() {
+    try {
+      const urls = ["/inventory", "/predictions", "/coordination"];
+      const responses = await Promise.all(urls.map(url => fetch(url)));
+      if (responses.some(response => !response.ok)) {
+        throw new Error("API request failed");
+      }
+
+      const [inventory, predictions, coordination] =
+        await Promise.all(responses.map(response => response.json()));
+
+document.getElementById("inventory").innerHTML = "";
+document.getElementById("predictions").innerHTML = "";
+document.getElementById("coordination").innerHTML = "";
+
+
+      document.getElementById("alertCount").textContent = inventory.length;
+      document.getElementById("riskCount").textContent =
+        predictions.filter(p => p.risk === "HIGH").length;
+      document.getElementById("transferCount").textContent = coordination.length;
+
+      inventory.forEach(a => addRow("inventory",
+        [a.hospital, a.medicine, a.current_stock, a.shortage]));
+
+      predictions.forEach(p => addRow("predictions",
+        [p.hospital, p.medicine, p.days_left, p.risk], 3));
+
+      coordination.forEach(c => addRow("coordination",
+        [c.from, c.to, c.medicine, c.quantity, c.status]));
+    } catch (error) {
+      const message = document.createElement("p");
+      message.className = "error";
+      message.textContent = "Unable to load dashboard data. Check the Flask server.";
+      document.querySelector("main").prepend(message);
+    }
+  }
+
+  loadDashboard();
+</script>
+
+<section style="background:white; padding:25px; margin:25px; border-radius:15px;">
+  <h2>Manual Medicine Request</h2>
+  <p>Hospitals can submit medicine requests manually.</p>
+
+  <form id="medicineRequestForm">
+    <select id="hospital" required>
+      <option value="">Select Hospital</option>
+      <option>Al Noor Specialist Hospital</option>
+      <option>Security Forces Hospital</option>
+      <option>Maternity and Children Hospital</option>
+    </select>
+
+    <select id="medicine" required>
+      <option value="">Select Medicine</option>
+      <option>Insulin</option>
+      <option>Paracetamol</option>
+      <option>Amoxicillin</option>
+    </select>
+
+    <input id="quantity" type="number" min="1"
+           placeholder="Quantity" required>
+
+    <button type="submit">Submit Request</button>
+  </form>
+
+  <p id="requestMessage"></p>
+</section>
+
+<script>
+document.getElementById("medicineRequestForm")
+  .addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const response = await fetch("/requests/manual", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        hospital: document.getElementById("hospital").value,
+        medicine: document.getElementById("medicine").value,
+        quantity: Number(document.getElementById("quantity").value)
+      })
+    });
+
+    const result = await response.json();
+    const message = document.getElementById("requestMessage");
+
+    if (response.ok) {
+      message.textContent = "Request submitted successfully!";
+      message.style.color = "green";
+      event.target.reset();
+    } else {
+      message.textContent = result.error || "Request failed.";
+      message.style.color = "red";
+    }
+  });
+</script>
+
+<section style="background:white; padding:25px; margin:25px; border-radius:15px;">
+  <h2>Medicine Requests Management</h2>
+<button onclick="generateAIRequests()"
+        style="
+            background:#5b35ad;
+            color:white;
+            padding:12px 20px;
+            border:none;
+            border-radius:8px;
+            cursor:pointer;
+            margin:15px 0;
+            font-size:15px;
+        ">
+    ✨ Generate AI Requests
+</button>
+  <table style="width:100%; border-collapse:collapse;">
+    <thead>
+      <tr>
+        <th>Hospital</th>
+        <th>Medicine</th>
+        <th>Quantity</th>
+        <th>Source</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="requestsTable"></tbody>
+  </table>
+</section>
+
+<script>
+async function loadRequests() {
+  const response = await fetch("/requests");
+  const requests = await response.json();
+
+  const table = document.getElementById("requestsTable");
+  table.innerHTML = "";
+
+  requests.forEach(req => {
+    const row = document.createElement("tr");
+
+    [req.hospital, req.medicine, req.quantity,
+     req.source, req.status].forEach(value => {
+      const cell = document.createElement("td");
+      cell.textContent = value;
+      cell.style.padding = "12px";
+      row.appendChild(cell);
+    });
+
+    const actions = document.createElement("td");
+
+    if (req.status === "Pending Approval") {
+      ["Approve", "Reject"].forEach(action => {
+        const button = document.createElement("button");
+        button.textContent = action;
+        button.style.margin = "4px";
+        button.onclick = () => updateStatus(req.id, action);
+        actions.appendChild(button);
+      });
+    } else {
+      actions.textContent = "Processed";
+    }
+
+    row.appendChild(actions);
+    table.appendChild(row);
+  });
+}
+
+async function generateAIRequests() {
+    const response = await fetch("/requests/ai", {
+        method: "POST"
+    });
+
+    if (!response.ok) {
+        alert("Failed to generate AI requests");
+        return;
+    }
+
+    await loadRequests();
+    alert("AI requests generated successfully!");
+}
+
+loadRequests();
+
+async function updateStatus(id, action) {
+    try {
+        const response = await fetch(`/requests/${id}/status`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ action: action })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            alert(result.error || "Unable to update request");
+            return;
+        }
+
+        await loadRequests();
+        await loadDashboard();
+        await loadTransferHistory();
+
+    } catch (error) {
+        console.error(error);
+        alert("Error connecting to server");
+    }
+}
+
+</script>
+
+<section style="background:white; padding:25px; margin:25px; border-radius:15px;">
+  <h2>Transfer History</h2>
+  <p>Completed medicine transfers between hospitals.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>From Hospital</th>
+          <th>To Hospital</th>
+          <th>Medicine</th>
+          <th>Quantity</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="transferHistoryTable"></tbody>
+    </table>
+  </div>
+</section>
+
+<script>
+async function loadTransferHistory() {
+    try {
+        const response = await fetch("/transfers/history");
+
+        if (!response.ok) {
+            throw new Error("Failed to load transfer history");
+        }
+
+        const transfers = await response.json();
+        const table = document.getElementById("transferHistoryTable");
+
+        table.innerHTML = "";
+
+        transfers.forEach(transfer => {
+            const row = document.createElement("tr");
+
+            [
+                transfer.from,
+                transfer.to,
+                transfer.medicine,
+                transfer.quantity,
+                transfer.status
+            ].forEach(value => {
+                const cell = document.createElement("td");
+                cell.textContent = value;
+                row.appendChild(cell);
+            });
+
+            table.appendChild(row);
+        });
+    } catch (error) {
+        console.error("Transfer history error:", error);
+    }
+}
+
+loadTransferHistory();
+</script>
+
+</body>
+</html>
